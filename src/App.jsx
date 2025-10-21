@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
 
 function App() {
@@ -108,7 +109,17 @@ function App() {
       <h1>Ferrous Control</h1>
       <p className="subtitle">Remote PC Control Panel</p>
       {localIp && (
-        <p className="ip-address">Network Address: http://{localIp}:7777</p>
+        <div className="network-info">
+          <p className="ip-address">Network Address: http://{localIp}:7777</p>
+          <div className="qr-code-container">
+            <QRCodeSVG
+              value={`http://${localIp}:7777`}
+              size={180}
+              level="H"
+            />
+            <p className="qr-label">Scan to connect from mobile device</p>
+          </div>
+        </div>
       )}
 
       <div className="button-container">
