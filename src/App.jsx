@@ -1,49 +1,153 @@
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [status, setStatus] = useState({ message: "", type: "" });
+  const [buttonsDisabled, setButtonsDisabled] = useState(false);
+  const [modal, setModal] = useState({ show: false, title: "", message: "", onConfirm: null });
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  function showModal(title, message) {
+    return new Promise((resolve) => {
+      setModal({ show: true, title, message, onConfirm: resolve });
+    });
+  }
+
+  function closeModal(result) {
+    if (modal.onConfirm) {
+      modal.onConfirm(result);
+    }
+    setModal({ show: false, title: "", message: "", onConfirm: null });
+  }
+
+  async function handleShutdown() {
+    const confirmed = await showModal("Confirm Action", "Are you sure you want to shutdown the PC?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    setButtonsDisabled(true);
+    setStatus({ message: "Executing shutdown...", type: "info" });
+
+    try {
+      const result = await invoke("shutdown");
+      if (result.success) {
+        setStatus({ message: "Shutdown command sent successfully!", type: "success" });
+      } else {
+        setStatus({ message: `Error: ${result.message}`, type: "error" });
+        setButtonsDisabled(false);
+      }
+    } catch (error) {
+      setStatus({ message: `Error: ${error}`, type: "error" });
+      setButtonsDisabled(false);
+    }
+
+    setTimeout(() => setStatus({ message: "", type: "" }), 5000);
+  }
+
+  async function handleRestart() {
+    const confirmed = await showModal("Confirm Action", "Are you sure you want to restart the PC?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    setButtonsDisabled(true);
+    setStatus({ message: "Executing restart...", type: "info" });
+
+    try {
+      const result = await invoke("restart");
+      if (result.success) {
+        setStatus({ message: "Restart command sent successfully!", type: "success" });
+      } else {
+        setStatus({ message: `Error: ${result.message}`, type: "error" });
+        setButtonsDisabled(false);
+      }
+    } catch (error) {
+      setStatus({ message: `Error: ${error}`, type: "error" });
+      setButtonsDisabled(false);
+    }
+
+    setTimeout(() => setStatus({ message: "", type: "" }), 5000);
+  }
+
+  async function handleCancel() {
+    setStatus({ message: "Cancelling shutdown...", type: "info" });
+
+    try {
+      const result = await invoke("cancel_shutdown");
+      if (result.success) {
+        setStatus({ message: result.message, type: "success" });
+      } else {
+        setStatus({ message: `Error: ${result.message}`, type: "error" });
+      }
+    } catch (error) {
+      setStatus({ message: `Error: ${error}`, type: "error" });
+    }
+
+    setTimeout(() => setStatus({ message: "", type: "" }), 5000);
   }
 
   return (
     <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+      <h1>Ferrous Control</h1>
+      <p className="subtitle">Remote PC Control Panel</p>
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <div className="button-container">
+        <button
+          className="control-btn shutdown-btn"
+          onClick={handleShutdown}
+          disabled={buttonsDisabled}
+        >
+          <span className="icon">🔴</span>
+          <span>Shutdown</span>
+        </button>
+
+        <button
+          className="control-btn restart-btn"
+          onClick={handleRestart}
+          disabled={buttonsDisabled}
+        >
+          <span className="icon">↻</span>
+          <span>Restart</span>
+        </button>
+
+        <button
+          className="control-btn cancel-btn"
+          onClick={handleCancel}
+        >
+          <span className="icon">⛔</span>
+          <span>Cancel</span>
+        </button>
       </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+      {status.message && (
+        <div className={`status ${status.type}`}>
+          {status.message}
+        </div>
+      )}
+
+      {modal.show && (
+        <div className="modal-overlay active" onClick={(e) => {
+          if (e.target.className.includes('modal-overlay')) {
+            closeModal(false);
+          }
+        }}>
+          <div className="modal">
+            <h2>{modal.title}</h2>
+            <p>{modal.message}</p>
+            <div className="modal-buttons">
+              <button className="modal-btn modal-btn-cancel" onClick={() => closeModal(false)}>
+                Cancel
+              </button>
+              <button className="modal-btn modal-btn-confirm" onClick={() => closeModal(true)}>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
