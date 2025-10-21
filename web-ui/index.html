@@ -9,7 +9,26 @@
 </head>
 
 <body>
-    <h1>Ferrous Control</h1>
+    <div class="container">
+        <h1>Ferrous Control</h1>
+        <p class="subtitle">Remote PC Control Panel</p>
+
+        <div class="button-container">
+            <button id="shutdownBtn" class="control-btn shutdown-btn">
+                <span class="icon">⏻</span>
+                <span>Shutdown</span>
+            </button>
+
+            <button id="restartBtn" class="control-btn restart-btn">
+                <span class="icon">↻</span>
+                <span>Restart</span>
+            </button>
+        </div>
+
+        <div id="status" class="status"></div>
+    </div>
+
+    <script src="script.js"></script>
 </body>
 
 </html>
