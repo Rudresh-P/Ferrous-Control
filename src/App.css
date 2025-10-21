@@ -36,8 +36,16 @@ h1 {
 
 .subtitle {
   color: #666;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   font-size: 1.1rem;
+}
+
+.ip-address {
+  color: #4facfe;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 2rem;
+  font-family: 'Courier New', monospace;
 }
 
 .button-container {

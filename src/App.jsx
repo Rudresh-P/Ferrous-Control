@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -6,6 +6,20 @@ function App() {
   const [status, setStatus] = useState({ message: "", type: "" });
   const [buttonsDisabled, setButtonsDisabled] = useState(false);
   const [modal, setModal] = useState({ show: false, title: "", message: "", onConfirm: null });
+  const [localIp, setLocalIp] = useState("");
+
+  useEffect(() => {
+    async function fetchLocalIp() {
+      try {
+        const ip = await invoke("get_local_ip");
+        setLocalIp(ip);
+      } catch (error) {
+        console.error("Failed to get local IP:", error);
+        setLocalIp("Unable to get IP");
+      }
+    }
+    fetchLocalIp();
+  }, []);
 
   function showModal(title, message) {
     return new Promise((resolve) => {
@@ -93,6 +107,9 @@ function App() {
     <main className="container">
       <h1>Ferrous Control</h1>
       <p className="subtitle">Remote PC Control Panel</p>
+      {localIp && (
+        <p className="ip-address">Network Address: http://{localIp}:7777</p>
+      )}
 
       <div className="button-container">
         <button
