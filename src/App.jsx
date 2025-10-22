@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
+import AutoStartToggle from "./components/AutoStartToggle";
 
 function App() {
   const [status, setStatus] = useState({ message: "", type: "" });
@@ -106,6 +107,7 @@ function App() {
 
   return (
     <main className="container">
+      <AutoStartToggle />
       <h1>Ferrous Control</h1>
       <p className="subtitle">Remote PC Control Panel</p>
       {localIp && (

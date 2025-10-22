@@ -1,6 +1,6 @@
+use local_ip_address::local_ip;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
-use local_ip_address::local_ip;
 
 #[derive(Serialize, Deserialize)]
 struct CommandResponse {
@@ -106,8 +106,15 @@ fn get_local_ip() -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![shutdown, restart, cancel_shutdown, get_local_ip])
+        .invoke_handler(tauri::generate_handler![
+            shutdown,
+            restart,
+            cancel_shutdown,
+            get_local_ip
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
