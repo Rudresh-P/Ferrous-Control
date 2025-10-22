@@ -9,6 +9,7 @@
     "core:default",
     "opener:default",
     "process:default",
-    "core:app:allow-default-window-icon"
+    "core:app:allow-default-window-icon",
+    "core:window:allow-show"
   ]
 }
