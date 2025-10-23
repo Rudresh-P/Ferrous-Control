@@ -1,29 +1,59 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- White Outline Layer -->
+  <!-- Monitor Screen Outline -->
+  <rect x="15" y="100" width="360" height="240" rx="25" ry="25" fill="none" stroke="white" stroke-width="28" stroke-linejoin="round"/>
+
+  <!-- Monitor Stand Outline -->
+  <rect x="165" y="340" width="60" height="50" fill="none" stroke="white" stroke-width="28" stroke-linejoin="round"/>
+
+  <!-- Monitor Base Outline -->
+  <rect x="130" y="390" width="130" height="50" fill="none" stroke="white" stroke-width="28" stroke-linejoin="round"/>
+
+  <!-- Phone Outline -->
+  <rect x="380" y="230" width="90" height="190" rx="20" ry="20" fill="none" stroke="white" stroke-width="28" stroke-linejoin="round"/>
+
+  <!-- Phone Button Outline -->
+  <rect x="410" y="390" width="30" height="10" rx="5" ry="5" fill="white"/>
+
+  <!-- WiFi Symbol Outline -->
+  <!-- Outer Arc Outline -->
+  <path d="M 405 125 A 65 65 0 0 1 495 125" fill="none" stroke="white" stroke-width="28" stroke-linecap="round"/>
+
+  <!-- Middle Arc Outline -->
+  <path d="M 420 145 A 40 40 0 0 1 480 145" fill="none" stroke="white" stroke-width="28" stroke-linecap="round"/>
+
+  <!-- Inner Arc Outline -->
+  <path d="M 437 165 A 20 20 0 0 1 463 165" fill="none" stroke="white" stroke-width="28" stroke-linecap="round"/>
+
+  <!-- WiFi Dot Outline -->
+  <circle cx="450" cy="185" r="16" fill="white"/>
+
+  <!-- Main Icon Layer -->
   <!-- Monitor Screen -->
   <rect x="15" y="100" width="360" height="240" rx="25" ry="25" fill="none" stroke="#CE412B" stroke-width="20" stroke-linejoin="round"/>
-  
+
   <!-- Monitor Stand -->
   <rect x="165" y="340" width="60" height="50" fill="none" stroke="#CE412B" stroke-width="20" stroke-linejoin="round"/>
-  
+
   <!-- Monitor Base -->
   <rect x="130" y="390" width="130" height="50" fill="none" stroke="#CE412B" stroke-width="20" stroke-linejoin="round"/>
-  
+
   <!-- Phone -->
   <rect x="380" y="230" width="90" height="190" rx="20" ry="20" fill="none" stroke="#CE412B" stroke-width="20" stroke-linejoin="round"/>
-  
+
   <!-- Phone Button -->
   <rect x="410" y="390" width="30" height="10" rx="5" ry="5" fill="#CE412B"/>
-  
+
   <!-- WiFi Symbol -->
   <!-- Outer Arc -->
   <path d="M 405 125 A 65 65 0 0 1 495 125" fill="none" stroke="#CE412B" stroke-width="20" stroke-linecap="round"/>
-  
+
   <!-- Middle Arc -->
   <path d="M 420 145 A 40 40 0 0 1 480 145" fill="none" stroke="#CE412B" stroke-width="20" stroke-linecap="round"/>
-  
+
   <!-- Inner Arc -->
   <path d="M 437 165 A 20 20 0 0 1 463 165" fill="none" stroke="#CE412B" stroke-width="20" stroke-linecap="round"/>
-  
+
   <!-- WiFi Dot -->
   <circle cx="450" cy="185" r="12" fill="#CE412B"/>
 </svg>
