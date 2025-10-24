@@ -127,6 +127,148 @@ fn sleep() -> CommandResponse {
 }
 
 #[tauri::command]
+fn increase_volume(amount: Option<i32>) -> CommandResponse {
+    let volume_change = amount.unwrap_or(2);
+    println!("Increase volume request received via Tauri (amount: {})", volume_change);
+
+    let result = if cfg!(target_os = "windows") {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            Command::new("powershell")
+                .creation_flags(CREATE_NO_WINDOW)
+                .args([
+                    "-Command",
+                    &format!(
+                        "$obj = New-Object -ComObject WScript.Shell; for($i=0; $i -lt {}; $i++) {{ $obj.SendKeys([char]175) }}",
+                        volume_change / 2
+                    )
+                ])
+                .spawn()
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            return CommandResponse {
+                success: false,
+                message: "Windows-only code path".to_string(),
+            };
+        }
+    } else if cfg!(target_os = "linux") {
+        // Try pactl (PulseAudio) first, fallback to amixer (ALSA)
+        let pactl_result = Command::new("pactl")
+            .args(["set-sink-volume", "@DEFAULT_SINK@", &format!("+{}%", volume_change)])
+            .spawn();
+
+        if pactl_result.is_ok() {
+            pactl_result
+        } else {
+            Command::new("amixer")
+                .args(["set", "Master", &format!("{}%+", volume_change)])
+                .spawn()
+        }
+    } else if cfg!(target_os = "macos") {
+        Command::new("osascript")
+            .args([
+                "-e",
+                &format!(
+                    "set volume output volume (output volume of (get volume settings) + {})",
+                    volume_change
+                )
+            ])
+            .spawn()
+    } else {
+        return CommandResponse {
+            success: false,
+            message: "Unsupported operating system".to_string(),
+        };
+    };
+
+    match result {
+        Ok(_) => CommandResponse {
+            success: true,
+            message: format!("Volume increased by {}", volume_change),
+        },
+        Err(e) => CommandResponse {
+            success: false,
+            message: format!("Failed to increase volume: {}", e),
+        },
+    }
+}
+
+#[tauri::command]
+fn decrease_volume(amount: Option<i32>) -> CommandResponse {
+    let volume_change = amount.unwrap_or(2);
+    println!("Decrease volume request received via Tauri (amount: {})", volume_change);
+
+    let result = if cfg!(target_os = "windows") {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            Command::new("powershell")
+                .creation_flags(CREATE_NO_WINDOW)
+                .args([
+                    "-Command",
+                    &format!(
+                        "$obj = New-Object -ComObject WScript.Shell; for($i=0; $i -lt {}; $i++) {{ $obj.SendKeys([char]174) }}",
+                        volume_change / 2
+                    )
+                ])
+                .spawn()
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            return CommandResponse {
+                success: false,
+                message: "Windows-only code path".to_string(),
+            };
+        }
+    } else if cfg!(target_os = "linux") {
+        // Try pactl (PulseAudio) first, fallback to amixer (ALSA)
+        let pactl_result = Command::new("pactl")
+            .args(["set-sink-volume", "@DEFAULT_SINK@", &format!("-{}%", volume_change)])
+            .spawn();
+
+        if pactl_result.is_ok() {
+            pactl_result
+        } else {
+            Command::new("amixer")
+                .args(["set", "Master", &format!("{}%-", volume_change)])
+                .spawn()
+        }
+    } else if cfg!(target_os = "macos") {
+        Command::new("osascript")
+            .args([
+                "-e",
+                &format!(
+                    "set volume output volume (output volume of (get volume settings) - {})",
+                    volume_change
+                )
+            ])
+            .spawn()
+    } else {
+        return CommandResponse {
+            success: false,
+            message: "Unsupported operating system".to_string(),
+        };
+    };
+
+    match result {
+        Ok(_) => CommandResponse {
+            success: true,
+            message: format!("Volume decreased by {}", volume_change),
+        },
+        Err(e) => CommandResponse {
+            success: false,
+            message: format!("Failed to decrease volume: {}", e),
+        },
+    }
+}
+
+#[tauri::command]
 fn get_local_ip() -> String {
     match local_ip() {
         Ok(ip) => ip.to_string(),
@@ -145,6 +287,8 @@ pub fn run() {
             restart,
             cancel_shutdown,
             sleep,
+            increase_volume,
+            decrease_volume,
             get_local_ip
         ])
         .on_window_event(|window, event| {

@@ -105,6 +105,22 @@ function App() {
     setTimeout(() => setStatus({ message: "", type: "" }), 5000);
   }
 
+  async function handleVolumeIncrease() {
+    try {
+      await invoke("increase_volume", { amount: 2 });
+    } catch (error) {
+      console.error("Failed to increase volume:", error);
+    }
+  }
+
+  async function handleVolumeDecrease() {
+    try {
+      await invoke("decrease_volume", { amount: 2 });
+    } catch (error) {
+      console.error("Failed to decrease volume:", error);
+    }
+  }
+
   return (
     <main className="container">
       <AutoStartToggle />
@@ -149,6 +165,24 @@ function App() {
         >
           <span className="icon">⛔</span>
           <span>Cancel</span>
+        </button>
+      </div>
+
+      <div className="button-container volume-controls">
+        <button
+          className="control-btn volume-up-btn"
+          onClick={handleVolumeIncrease}
+        >
+          <span className="icon">🔊</span>
+          <span>Volume Up</span>
+        </button>
+
+        <button
+          className="control-btn volume-down-btn"
+          onClick={handleVolumeDecrease}
+        >
+          <span className="icon">🔉</span>
+          <span>Volume Down</span>
         </button>
       </div>
 

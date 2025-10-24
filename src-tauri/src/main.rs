@@ -174,6 +174,24 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             box-shadow: 0 10px 30px rgba(255, 167, 81, 0.4);
         }
 
+        .volume-up-btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .volume-up-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(79, 172, 254, 0.4);
+        }
+
+        .volume-down-btn {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+
+        .volume-down-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(67, 233, 123, 0.4);
+        }
+
         .control-btn:active {
             transform: translateY(-2px);
         }
@@ -336,6 +354,18 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             </button>
         </div>
 
+        <div class="button-container">
+            <button id="volumeUpBtn" class="control-btn volume-up-btn">
+                <span class="icon">🔊</span>
+                <span>Volume Up</span>
+            </button>
+
+            <button id="volumeDownBtn" class="control-btn volume-down-btn">
+                <span class="icon">🔉</span>
+                <span>Volume Down</span>
+            </button>
+        </div>
+
         <div id="status" class="status"></div>
     </div>
 
@@ -354,6 +384,8 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
         const shutdownBtn = document.getElementById('shutdownBtn');
         const sleepBtn = document.getElementById('sleepBtn');
         const cancelBtn = document.getElementById('cancelBtn');
+        const volumeUpBtn = document.getElementById('volumeUpBtn');
+        const volumeDownBtn = document.getElementById('volumeDownBtn');
         const statusDiv = document.getElementById('status');
         const modalOverlay = document.getElementById('modalOverlay');
         const modalTitle = document.getElementById('modalTitle');
@@ -453,6 +485,19 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             }
         }
 
+        async function changeVolume(endpoint) {
+            try {
+                await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+            } catch (error) {
+                console.error('Failed to change volume:', error);
+            }
+        }
+
         shutdownBtn.addEventListener('click', () => {
             executeCommand('/api/shutdown', 'shutdown');
         });
@@ -463,6 +508,14 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
 
         cancelBtn.addEventListener('click', () => {
             cancelShutdown();
+        });
+
+        volumeUpBtn.addEventListener('click', () => {
+            changeVolume('/api/volume/increase');
+        });
+
+        volumeDownBtn.addEventListener('click', () => {
+            changeVolume('/api/volume/decrease');
         });
     </script>
 </body>
@@ -599,6 +652,148 @@ async fn sleep() -> impl Responder {
     }
 }
 
+#[post("/api/volume/increase")]
+async fn increase_volume() -> impl Responder {
+    println!("Increase volume request received via web API");
+
+    let volume_change = 2;
+
+    let result = if cfg!(target_os = "windows") {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            Command::new("powershell")
+                .creation_flags(CREATE_NO_WINDOW)
+                .args([
+                    "-Command",
+                    &format!(
+                        "$obj = New-Object -ComObject WScript.Shell; for($i=0; $i -lt {}; $i++) {{ $obj.SendKeys([char]175) }}",
+                        volume_change / 2
+                    )
+                ])
+                .spawn()
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            return HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: "Windows-only code path".to_string(),
+            });
+        }
+    } else if cfg!(target_os = "linux") {
+        let pactl_result = Command::new("pactl")
+            .args(["set-sink-volume", "@DEFAULT_SINK@", &format!("+{}%", volume_change)])
+            .spawn();
+
+        if pactl_result.is_ok() {
+            pactl_result
+        } else {
+            Command::new("amixer")
+                .args(["set", "Master", &format!("{}%+", volume_change)])
+                .spawn()
+        }
+    } else if cfg!(target_os = "macos") {
+        Command::new("osascript")
+            .args([
+                "-e",
+                &format!(
+                    "set volume output volume (output volume of (get volume settings) + {})",
+                    volume_change
+                )
+            ])
+            .spawn()
+    } else {
+        return HttpResponse::InternalServerError().json(ApiResponse {
+            success: false,
+            message: "Unsupported operating system".to_string(),
+        });
+    };
+
+    match result {
+        Ok(_) => HttpResponse::Ok().json(ApiResponse {
+            success: true,
+            message: format!("Volume increased by {}", volume_change),
+        }),
+        Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+            success: false,
+            message: format!("Failed to increase volume: {}", e),
+        }),
+    }
+}
+
+#[post("/api/volume/decrease")]
+async fn decrease_volume() -> impl Responder {
+    println!("Decrease volume request received via web API");
+
+    let volume_change = 2;
+
+    let result = if cfg!(target_os = "windows") {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            Command::new("powershell")
+                .creation_flags(CREATE_NO_WINDOW)
+                .args([
+                    "-Command",
+                    &format!(
+                        "$obj = New-Object -ComObject WScript.Shell; for($i=0; $i -lt {}; $i++) {{ $obj.SendKeys([char]174) }}",
+                        volume_change / 2
+                    )
+                ])
+                .spawn()
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            return HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: "Windows-only code path".to_string(),
+            });
+        }
+    } else if cfg!(target_os = "linux") {
+        let pactl_result = Command::new("pactl")
+            .args(["set-sink-volume", "@DEFAULT_SINK@", &format!("-{}%", volume_change)])
+            .spawn();
+
+        if pactl_result.is_ok() {
+            pactl_result
+        } else {
+            Command::new("amixer")
+                .args(["set", "Master", &format!("{}%-", volume_change)])
+                .spawn()
+        }
+    } else if cfg!(target_os = "macos") {
+        Command::new("osascript")
+            .args([
+                "-e",
+                &format!(
+                    "set volume output volume (output volume of (get volume settings) - {})",
+                    volume_change
+                )
+            ])
+            .spawn()
+    } else {
+        return HttpResponse::InternalServerError().json(ApiResponse {
+            success: false,
+            message: "Unsupported operating system".to_string(),
+        });
+    };
+
+    match result {
+        Ok(_) => HttpResponse::Ok().json(ApiResponse {
+            success: true,
+            message: format!("Volume decreased by {}", volume_change),
+        }),
+        Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+            success: false,
+            message: format!("Failed to decrease volume: {}", e),
+        }),
+    }
+}
+
 #[actix_web::main]
 async fn start_web_server() -> std::io::Result<()> {
     let host = "0.0.0.0";
@@ -616,6 +811,8 @@ async fn start_web_server() -> std::io::Result<()> {
             .service(restart)
             .service(cancel_shutdown)
             .service(sleep)
+            .service(increase_volume)
+            .service(decrease_volume)
     })
     .bind((host, port))?
     .run()

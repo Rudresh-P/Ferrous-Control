@@ -135,6 +135,28 @@ h1 {
   box-shadow: 0 10px 30px rgba(255, 167, 81, 0.4);
 }
 
+.volume-controls {
+  margin-top: -0.5rem;
+}
+
+.volume-up-btn {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.volume-up-btn:hover:not(:disabled) {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(79, 172, 254, 0.4);
+}
+
+.volume-down-btn {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.volume-down-btn:hover:not(:disabled) {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(67, 233, 123, 0.4);
+}
+
 .control-btn:active:not(:disabled) {
   transform: translateY(-2px);
 }
