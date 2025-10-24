@@ -117,13 +117,13 @@ h1 {
   box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
 }
 
-.restart-btn {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+.sleep-btn {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
 }
 
-.restart-btn:hover:not(:disabled) {
+.sleep-btn:hover:not(:disabled) {
   transform: translateY(-5px);
-  box-shadow: 0 10px 30px rgba(79, 172, 254, 0.4);
+  box-shadow: 0 10px 30px rgba(168, 237, 234, 0.4);
 }
 
 .cancel-btn {

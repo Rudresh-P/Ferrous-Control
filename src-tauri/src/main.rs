@@ -156,13 +156,13 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
         }
 
-        .restart-btn {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        .sleep-btn {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
         }
 
-        .restart-btn:hover {
+        .sleep-btn:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(79, 172, 254, 0.4);
+            box-shadow: 0 10px 30px rgba(168, 237, 234, 0.4);
         }
 
         .cancel-btn {
@@ -325,9 +325,9 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
                 <span>Shutdown</span>
             </button>
 
-            <button id="restartBtn" class="control-btn restart-btn">
-                <span class="icon">↻</span>
-                <span>Restart</span>
+            <button id="sleepBtn" class="control-btn sleep-btn">
+                <span class="icon">😴</span>
+                <span>Sleep</span>
             </button>
 
             <button id="cancelBtn" class="control-btn cancel-btn">
@@ -352,7 +352,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
 
     <script>
         const shutdownBtn = document.getElementById('shutdownBtn');
-        const restartBtn = document.getElementById('restartBtn');
+        const sleepBtn = document.getElementById('sleepBtn');
         const cancelBtn = document.getElementById('cancelBtn');
         const statusDiv = document.getElementById('status');
         const modalOverlay = document.getElementById('modalOverlay');
@@ -457,8 +457,8 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             executeCommand('/api/shutdown', 'shutdown');
         });
 
-        restartBtn.addEventListener('click', () => {
-            executeCommand('/api/restart', 'restart');
+        sleepBtn.addEventListener('click', () => {
+            executeCommand('/api/sleep', 'sleep');
         });
 
         cancelBtn.addEventListener('click', () => {
@@ -568,6 +568,37 @@ async fn cancel_shutdown() -> impl Responder {
     }
 }
 
+#[post("/api/sleep")]
+async fn sleep() -> impl Responder {
+    println!("Sleep request received via web API");
+
+    let result = if cfg!(target_os = "windows") {
+        Command::new("rundll32.exe")
+            .args(["powrprof.dll,SetSuspendState", "0,1,0"])
+            .spawn()
+    } else if cfg!(target_os = "linux") {
+        Command::new("systemctl").args(["suspend"]).spawn()
+    } else if cfg!(target_os = "macos") {
+        Command::new("pmset").args(["sleepnow"]).spawn()
+    } else {
+        return HttpResponse::InternalServerError().json(ApiResponse {
+            success: false,
+            message: "Unsupported operating system".to_string(),
+        });
+    };
+
+    match result {
+        Ok(_) => HttpResponse::Ok().json(ApiResponse {
+            success: true,
+            message: "Sleep command executed".to_string(),
+        }),
+        Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+            success: false,
+            message: format!("Failed to execute sleep: {}", e),
+        }),
+    }
+}
+
 #[actix_web::main]
 async fn start_web_server() -> std::io::Result<()> {
     let host = "0.0.0.0";
@@ -584,6 +615,7 @@ async fn start_web_server() -> std::io::Result<()> {
             .service(shutdown)
             .service(restart)
             .service(cancel_shutdown)
+            .service(sleep)
     })
     .bind((host, port))?
     .run()

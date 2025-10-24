@@ -62,20 +62,20 @@ function App() {
     setTimeout(() => setStatus({ message: "", type: "" }), 5000);
   }
 
-  async function handleRestart() {
-    const confirmed = await showModal("Confirm Action", "Are you sure you want to restart the PC?");
+  async function handleSleep() {
+    const confirmed = await showModal("Confirm Action", "Are you sure you want to put the PC to sleep?");
 
     if (!confirmed) {
       return;
     }
 
     setButtonsDisabled(true);
-    setStatus({ message: "Executing restart...", type: "info" });
+    setStatus({ message: "Executing sleep...", type: "info" });
 
     try {
-      const result = await invoke("restart");
+      const result = await invoke("sleep");
       if (result.success) {
-        setStatus({ message: "Restart command sent successfully!", type: "success" });
+        setStatus({ message: "Sleep command sent successfully!", type: "success" });
       } else {
         setStatus({ message: `Error: ${result.message}`, type: "error" });
         setButtonsDisabled(false);
@@ -135,12 +135,12 @@ function App() {
         </button>
 
         <button
-          className="control-btn restart-btn"
-          onClick={handleRestart}
+          className="control-btn sleep-btn"
+          onClick={handleSleep}
           disabled={buttonsDisabled}
         >
-          <span className="icon">↻</span>
-          <span>Restart</span>
+          <span className="icon">😴</span>
+          <span>Sleep</span>
         </button>
 
         <button

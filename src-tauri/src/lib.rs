@@ -96,6 +96,37 @@ fn cancel_shutdown() -> CommandResponse {
 }
 
 #[tauri::command]
+fn sleep() -> CommandResponse {
+    println!("Sleep request received via Tauri");
+
+    let result = if cfg!(target_os = "windows") {
+        Command::new("rundll32.exe")
+            .args(["powrprof.dll,SetSuspendState", "0,1,0"])
+            .spawn()
+    } else if cfg!(target_os = "linux") {
+        Command::new("systemctl").args(["suspend"]).spawn()
+    } else if cfg!(target_os = "macos") {
+        Command::new("pmset").args(["sleepnow"]).spawn()
+    } else {
+        return CommandResponse {
+            success: false,
+            message: "Unsupported operating system".to_string(),
+        };
+    };
+
+    match result {
+        Ok(_) => CommandResponse {
+            success: true,
+            message: "Sleep command executed".to_string(),
+        },
+        Err(e) => CommandResponse {
+            success: false,
+            message: format!("Failed to execute sleep: {}", e),
+        },
+    }
+}
+
+#[tauri::command]
 fn get_local_ip() -> String {
     match local_ip() {
         Ok(ip) => ip.to_string(),
@@ -113,6 +144,7 @@ pub fn run() {
             shutdown,
             restart,
             cancel_shutdown,
+            sleep,
             get_local_ip
         ])
         .on_window_event(|window, event| {
