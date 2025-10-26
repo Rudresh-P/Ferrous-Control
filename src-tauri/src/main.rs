@@ -330,6 +330,51 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             background: #d0d0d0;
             transform: translateY(-2px);
         }
+
+        .volume-display {
+            margin: 1.5rem auto;
+            max-width: 300px;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .volume-level {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .volume-icon {
+            font-size: 2rem;
+        }
+
+        .volume-percentage {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #4facfe;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .volume-bar {
+            width: 100%;
+            height: 12px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .volume-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            box-shadow: 0 2px 8px rgba(79, 172, 254, 0.4);
+        }
     </style>
 </head>
 <body>
@@ -366,6 +411,16 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             </button>
         </div>
 
+        <div id="volumeDisplay" class="volume-display" style="display: none;">
+            <div class="volume-level">
+                <span class="volume-icon">🔊</span>
+                <span id="volumePercentage" class="volume-percentage">0%</span>
+            </div>
+            <div class="volume-bar">
+                <div id="volumeBarFill" class="volume-bar-fill" style="width: 0%;"></div>
+            </div>
+        </div>
+
         <div id="status" class="status"></div>
     </div>
 
@@ -392,8 +447,33 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
         const modalMessage = document.getElementById('modalMessage');
         const modalCancel = document.getElementById('modalCancel');
         const modalConfirm = document.getElementById('modalConfirm');
+        const volumeDisplay = document.getElementById('volumeDisplay');
+        const volumePercentage = document.getElementById('volumePercentage');
+        const volumeBarFill = document.getElementById('volumeBarFill');
 
         let modalResolve = null;
+
+        async function fetchVolume() {
+            console.log('Fetching volume...');
+            try {
+                const response = await fetch('/api/volume/get');
+                const data = await response.json();
+
+                if (data.volume !== undefined) {
+                    console.log('Volume received:', data.volume);
+                    volumePercentage.textContent = data.volume + '%';
+                    volumeBarFill.style.width = data.volume + '%';
+                    volumeDisplay.style.display = 'block';
+                } else {
+                    console.error('No volume data in response');
+                }
+            } catch (error) {
+                console.error('Failed to fetch volume:', error);
+            }
+        }
+
+        // Fetch volume on page load
+        fetchVolume();
 
         function showModal(title, message) {
             return new Promise((resolve) => {
@@ -486,6 +566,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
         }
 
         async function changeVolume(endpoint) {
+            console.log('Changing volume via:', endpoint);
             try {
                 await fetch(endpoint, {
                     method: 'POST',
@@ -493,6 +574,8 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
                         'Content-Type': 'application/json',
                     },
                 });
+                // Wait a bit for the volume change to take effect, then refresh
+                setTimeout(fetchVolume, 200);
             } catch (error) {
                 console.error('Failed to change volume:', error);
             }
@@ -794,6 +877,75 @@ async fn decrease_volume() -> impl Responder {
     }
 }
 
+#[derive(Serialize)]
+struct VolumeResponse {
+    volume: i32,
+}
+
+#[get("/api/volume/get")]
+async fn get_volume() -> impl Responder {
+    println!("Get volume request received via web API");
+
+    if cfg!(target_os = "windows") {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            let output = Command::new("powershell")
+                .creation_flags(CREATE_NO_WINDOW)
+                .args([
+                    "-Command",
+                    "$code = @'\nusing System;\nusing System.Runtime.InteropServices;\n\n[Guid(\"5CDF2C82-841E-4546-9722-0CF74078229A\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\ninterface IAudioEndpointVolume {\n    int NotImpl1(); int NotImpl2();\n    int GetChannelCount(out int channelCount);\n    int SetMasterVolumeLevel(float level, Guid eventContext);\n    int SetMasterVolumeLevelScalar(float level, Guid eventContext);\n    int GetMasterVolumeLevel(out float level);\n    int GetMasterVolumeLevelScalar(out float level);\n}\n\n[Guid(\"D666063F-1587-4E43-81F1-B948E807363F\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\ninterface IMMDevice {\n    int Activate(ref Guid id, int clsCtx, int activationParams, out IAudioEndpointVolume aev);\n}\n\n[Guid(\"A95664D2-9614-4F35-A746-DE8DB63617E6\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\ninterface IMMDeviceEnumerator {\n    int NotImpl1();\n    int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint);\n}\n\n[ComImport, Guid(\"BCDE0395-E52F-467C-8E3D-C4579291692E\")]\nclass MMDeviceEnumeratorComObject { }\n\npublic class Audio {\n    public static float GetMasterVolume() {\n        IMMDeviceEnumerator deviceEnumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());\n        IMMDevice device = null;\n        deviceEnumerator.GetDefaultAudioEndpoint(0, 0, out device);\n        Guid iidIAudioEndpointVolume = typeof(IAudioEndpointVolume).GUID;\n        IAudioEndpointVolume aev = null;\n        device.Activate(ref iidIAudioEndpointVolume, 0, 0, out aev);\n        float volume = 0;\n        aev.GetMasterVolumeLevelScalar(out volume);\n        return volume;\n    }\n}\n'@; Add-Type -TypeDefinition $code; $vol = [Audio]::GetMasterVolume(); [Math]::Round($vol * 100)"
+                ])
+                .output();
+
+            match output {
+                Ok(result) => {
+                    let stdout = String::from_utf8_lossy(&result.stdout);
+                    let volume_str = stdout.trim();
+
+                    println!("Volume output: {}", volume_str);
+
+                    match volume_str.parse::<i32>() {
+                        Ok(vol) => {
+                            let clamped_vol = vol.min(100).max(0);
+                            println!("Successfully retrieved volume: {}%", clamped_vol);
+                            return HttpResponse::Ok().json(VolumeResponse {
+                                volume: clamped_vol,
+                            });
+                        },
+                        Err(_) => {
+                            return HttpResponse::InternalServerError().json(ApiResponse {
+                                success: false,
+                                message: "Failed to parse volume".to_string(),
+                            });
+                        }
+                    }
+                }
+                Err(e) => {
+                    return HttpResponse::InternalServerError().json(ApiResponse {
+                        success: false,
+                        message: format!("Failed to get volume: {}", e),
+                    });
+                }
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            return HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: "Windows-only code path".to_string(),
+            });
+        }
+    } else {
+        return HttpResponse::InternalServerError().json(ApiResponse {
+            success: false,
+            message: "Unsupported operating system for volume detection".to_string(),
+        });
+    }
+}
+
 #[actix_web::main]
 async fn start_web_server() -> std::io::Result<()> {
     let host = "0.0.0.0";
@@ -813,6 +965,7 @@ async fn start_web_server() -> std::io::Result<()> {
             .service(sleep)
             .service(increase_volume)
             .service(decrease_volume)
+            .service(get_volume)
     })
     .bind((host, port))?
     .run()
