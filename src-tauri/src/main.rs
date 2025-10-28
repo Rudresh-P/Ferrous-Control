@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::thread;
 
+#[cfg(target_os = "windows")]
+mod volume_control;
+
 const HTML_CONTENT: &str = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -359,21 +362,67 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
-        .volume-bar {
+        .volume-slider {
             width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
             height: 12px;
             background: rgba(255, 255, 255, 0.6);
             border-radius: 10px;
-            overflow: hidden;
+            outline: none;
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: background 0.3s ease;
         }
 
-        .volume-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
-            border-radius: 10px;
-            transition: width 0.3s ease;
-            box-shadow: 0 2px 8px rgba(79, 172, 254, 0.4);
+        .volume-slider:hover {
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(79, 172, 254, 0.6);
+            transition: all 0.3s ease;
+        }
+
+        .volume-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(79, 172, 254, 0.8);
+        }
+
+        .volume-slider::-webkit-slider-thumb:active {
+            transform: scale(0.95);
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(79, 172, 254, 0.6);
+            transition: all 0.3s ease;
+        }
+
+        .volume-slider::-moz-range-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(79, 172, 254, 0.8);
+        }
+
+        .volume-slider::-moz-range-thumb:active {
+            transform: scale(0.95);
+        }
+
+        .volume-slider::-moz-range-track {
+            background: transparent;
+            border: none;
         }
     </style>
 </head>
@@ -416,9 +465,7 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
                 <span class="volume-icon">🔊</span>
                 <span id="volumePercentage" class="volume-percentage">0%</span>
             </div>
-            <div class="volume-bar">
-                <div id="volumeBarFill" class="volume-bar-fill" style="width: 0%;"></div>
-            </div>
+            <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" value="0" step="1">
         </div>
 
         <div id="status" class="status"></div>
@@ -449,9 +496,10 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
         const modalConfirm = document.getElementById('modalConfirm');
         const volumeDisplay = document.getElementById('volumeDisplay');
         const volumePercentage = document.getElementById('volumePercentage');
-        const volumeBarFill = document.getElementById('volumeBarFill');
+        const volumeSlider = document.getElementById('volumeSlider');
 
         let modalResolve = null;
+        let isUpdatingVolume = false;
 
         async function fetchVolume() {
             console.log('Fetching volume...');
@@ -461,9 +509,11 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
 
                 if (data.volume !== undefined) {
                     console.log('Volume received:', data.volume);
+                    isUpdatingVolume = true;
                     volumePercentage.textContent = data.volume + '%';
-                    volumeBarFill.style.width = data.volume + '%';
+                    volumeSlider.value = data.volume;
                     volumeDisplay.style.display = 'block';
+                    isUpdatingVolume = false;
                 } else {
                     console.error('No volume data in response');
                 }
@@ -471,6 +521,55 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
                 console.error('Failed to fetch volume:', error);
             }
         }
+
+        async function setVolume(volume) {
+            console.log('Setting volume to:', volume);
+            try {
+                const response = await fetch('/api/volume/set', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ volume: parseInt(volume) }),
+                });
+
+                const data = await response.json();
+                if (!data.success) {
+                    console.error('Failed to set volume:', data.message);
+                }
+            } catch (error) {
+                console.error('Failed to set volume:', error);
+            }
+        }
+
+        // Debounce function to avoid too many API calls
+        let volumeTimeout = null;
+        function debounceSetVolume(volume) {
+            clearTimeout(volumeTimeout);
+            volumeTimeout = setTimeout(() => {
+                setVolume(volume);
+            }, 150);
+        }
+
+        // Update volume display in real-time as user drags
+        volumeSlider.addEventListener('input', (e) => {
+            if (!isUpdatingVolume) {
+                const volume = e.target.value;
+                volumePercentage.textContent = volume + '%';
+                debounceSetVolume(volume);
+            }
+        });
+
+        // Also handle change event for final value
+        volumeSlider.addEventListener('change', (e) => {
+            if (!isUpdatingVolume) {
+                const volume = e.target.value;
+                setVolume(volume).then(() => {
+                    // Refresh volume after a short delay to confirm
+                    setTimeout(fetchVolume, 300);
+                });
+            }
+        });
 
         // Fetch volume on page load
         fetchVolume();
@@ -741,44 +840,52 @@ async fn increase_volume() -> impl Responder {
 
     let volume_change = 2;
 
-    let result = if cfg!(target_os = "windows") {
+    if cfg!(target_os = "windows") {
         #[cfg(target_os = "windows")]
         {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-            Command::new("powershell")
-                .creation_flags(CREATE_NO_WINDOW)
-                .args([
-                    "-Command",
-                    &format!(
-                        "$obj = New-Object -ComObject WScript.Shell; for($i=0; $i -lt {}; $i++) {{ $obj.SendKeys([char]175) }}",
-                        volume_change / 2
-                    )
-                ])
-                .spawn()
+            match volume_control::VolumeControl::increase_volume(volume_change) {
+                Ok(new_volume) => HttpResponse::Ok().json(ApiResponse {
+                    success: true,
+                    message: format!("Volume increased to {}%", new_volume),
+                }),
+                Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+                    success: false,
+                    message: format!("Failed to increase volume: {}", e),
+                }),
+            }
         }
         #[cfg(not(target_os = "windows"))]
         {
-            return HttpResponse::InternalServerError().json(ApiResponse {
+            HttpResponse::InternalServerError().json(ApiResponse {
                 success: false,
                 message: "Windows-only code path".to_string(),
-            });
+            })
         }
     } else if cfg!(target_os = "linux") {
         let pactl_result = Command::new("pactl")
             .args(["set-sink-volume", "@DEFAULT_SINK@", &format!("+{}%", volume_change)])
             .spawn();
 
-        if pactl_result.is_ok() {
+        let result = if pactl_result.is_ok() {
             pactl_result
         } else {
             Command::new("amixer")
                 .args(["set", "Master", &format!("{}%+", volume_change)])
                 .spawn()
+        };
+
+        match result {
+            Ok(_) => HttpResponse::Ok().json(ApiResponse {
+                success: true,
+                message: format!("Volume increased by {}", volume_change),
+            }),
+            Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: format!("Failed to increase volume: {}", e),
+            }),
         }
     } else if cfg!(target_os = "macos") {
-        Command::new("osascript")
+        let result = Command::new("osascript")
             .args([
                 "-e",
                 &format!(
@@ -786,23 +893,23 @@ async fn increase_volume() -> impl Responder {
                     volume_change
                 )
             ])
-            .spawn()
+            .spawn();
+
+        match result {
+            Ok(_) => HttpResponse::Ok().json(ApiResponse {
+                success: true,
+                message: format!("Volume increased by {}", volume_change),
+            }),
+            Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: format!("Failed to increase volume: {}", e),
+            }),
+        }
     } else {
-        return HttpResponse::InternalServerError().json(ApiResponse {
+        HttpResponse::InternalServerError().json(ApiResponse {
             success: false,
             message: "Unsupported operating system".to_string(),
-        });
-    };
-
-    match result {
-        Ok(_) => HttpResponse::Ok().json(ApiResponse {
-            success: true,
-            message: format!("Volume increased by {}", volume_change),
-        }),
-        Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
-            success: false,
-            message: format!("Failed to increase volume: {}", e),
-        }),
+        })
     }
 }
 
@@ -812,44 +919,52 @@ async fn decrease_volume() -> impl Responder {
 
     let volume_change = 2;
 
-    let result = if cfg!(target_os = "windows") {
+    if cfg!(target_os = "windows") {
         #[cfg(target_os = "windows")]
         {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-            Command::new("powershell")
-                .creation_flags(CREATE_NO_WINDOW)
-                .args([
-                    "-Command",
-                    &format!(
-                        "$obj = New-Object -ComObject WScript.Shell; for($i=0; $i -lt {}; $i++) {{ $obj.SendKeys([char]174) }}",
-                        volume_change / 2
-                    )
-                ])
-                .spawn()
+            match volume_control::VolumeControl::decrease_volume(volume_change) {
+                Ok(new_volume) => HttpResponse::Ok().json(ApiResponse {
+                    success: true,
+                    message: format!("Volume decreased to {}%", new_volume),
+                }),
+                Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+                    success: false,
+                    message: format!("Failed to decrease volume: {}", e),
+                }),
+            }
         }
         #[cfg(not(target_os = "windows"))]
         {
-            return HttpResponse::InternalServerError().json(ApiResponse {
+            HttpResponse::InternalServerError().json(ApiResponse {
                 success: false,
                 message: "Windows-only code path".to_string(),
-            });
+            })
         }
     } else if cfg!(target_os = "linux") {
         let pactl_result = Command::new("pactl")
             .args(["set-sink-volume", "@DEFAULT_SINK@", &format!("-{}%", volume_change)])
             .spawn();
 
-        if pactl_result.is_ok() {
+        let result = if pactl_result.is_ok() {
             pactl_result
         } else {
             Command::new("amixer")
                 .args(["set", "Master", &format!("{}%-", volume_change)])
                 .spawn()
+        };
+
+        match result {
+            Ok(_) => HttpResponse::Ok().json(ApiResponse {
+                success: true,
+                message: format!("Volume decreased by {}", volume_change),
+            }),
+            Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: format!("Failed to decrease volume: {}", e),
+            }),
         }
     } else if cfg!(target_os = "macos") {
-        Command::new("osascript")
+        let result = Command::new("osascript")
             .args([
                 "-e",
                 &format!(
@@ -857,23 +972,23 @@ async fn decrease_volume() -> impl Responder {
                     volume_change
                 )
             ])
-            .spawn()
+            .spawn();
+
+        match result {
+            Ok(_) => HttpResponse::Ok().json(ApiResponse {
+                success: true,
+                message: format!("Volume decreased by {}", volume_change),
+            }),
+            Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: format!("Failed to decrease volume: {}", e),
+            }),
+        }
     } else {
-        return HttpResponse::InternalServerError().json(ApiResponse {
+        HttpResponse::InternalServerError().json(ApiResponse {
             success: false,
             message: "Unsupported operating system".to_string(),
-        });
-    };
-
-    match result {
-        Ok(_) => HttpResponse::Ok().json(ApiResponse {
-            success: true,
-            message: format!("Volume decreased by {}", volume_change),
-        }),
-        Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
-            success: false,
-            message: format!("Failed to decrease volume: {}", e),
-        }),
+        })
     }
 }
 
@@ -889,60 +1004,120 @@ async fn get_volume() -> impl Responder {
     if cfg!(target_os = "windows") {
         #[cfg(target_os = "windows")]
         {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-            let output = Command::new("powershell")
-                .creation_flags(CREATE_NO_WINDOW)
-                .args([
-                    "-Command",
-                    "$code = @'\nusing System;\nusing System.Runtime.InteropServices;\n\n[Guid(\"5CDF2C82-841E-4546-9722-0CF74078229A\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\ninterface IAudioEndpointVolume {\n    int NotImpl1(); int NotImpl2();\n    int GetChannelCount(out int channelCount);\n    int SetMasterVolumeLevel(float level, Guid eventContext);\n    int SetMasterVolumeLevelScalar(float level, Guid eventContext);\n    int GetMasterVolumeLevel(out float level);\n    int GetMasterVolumeLevelScalar(out float level);\n}\n\n[Guid(\"D666063F-1587-4E43-81F1-B948E807363F\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\ninterface IMMDevice {\n    int Activate(ref Guid id, int clsCtx, int activationParams, out IAudioEndpointVolume aev);\n}\n\n[Guid(\"A95664D2-9614-4F35-A746-DE8DB63617E6\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\ninterface IMMDeviceEnumerator {\n    int NotImpl1();\n    int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint);\n}\n\n[ComImport, Guid(\"BCDE0395-E52F-467C-8E3D-C4579291692E\")]\nclass MMDeviceEnumeratorComObject { }\n\npublic class Audio {\n    public static float GetMasterVolume() {\n        IMMDeviceEnumerator deviceEnumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());\n        IMMDevice device = null;\n        deviceEnumerator.GetDefaultAudioEndpoint(0, 0, out device);\n        Guid iidIAudioEndpointVolume = typeof(IAudioEndpointVolume).GUID;\n        IAudioEndpointVolume aev = null;\n        device.Activate(ref iidIAudioEndpointVolume, 0, 0, out aev);\n        float volume = 0;\n        aev.GetMasterVolumeLevelScalar(out volume);\n        return volume;\n    }\n}\n'@; Add-Type -TypeDefinition $code; $vol = [Audio]::GetMasterVolume(); [Math]::Round($vol * 100)"
-                ])
-                .output();
-
-            match output {
-                Ok(result) => {
-                    let stdout = String::from_utf8_lossy(&result.stdout);
-                    let volume_str = stdout.trim();
-
-                    println!("Volume output: {}", volume_str);
-
-                    match volume_str.parse::<i32>() {
-                        Ok(vol) => {
-                            let clamped_vol = vol.min(100).max(0);
-                            println!("Successfully retrieved volume: {}%", clamped_vol);
-                            return HttpResponse::Ok().json(VolumeResponse {
-                                volume: clamped_vol,
-                            });
-                        },
-                        Err(_) => {
-                            return HttpResponse::InternalServerError().json(ApiResponse {
-                                success: false,
-                                message: "Failed to parse volume".to_string(),
-                            });
-                        }
-                    }
-                }
+            match volume_control::VolumeControl::get_volume() {
+                Ok(volume) => {
+                    println!("Successfully retrieved volume: {}%", volume);
+                    HttpResponse::Ok().json(VolumeResponse {
+                        volume,
+                    })
+                },
                 Err(e) => {
-                    return HttpResponse::InternalServerError().json(ApiResponse {
+                    HttpResponse::InternalServerError().json(ApiResponse {
                         success: false,
                         message: format!("Failed to get volume: {}", e),
-                    });
+                    })
                 }
             }
         }
         #[cfg(not(target_os = "windows"))]
         {
-            return HttpResponse::InternalServerError().json(ApiResponse {
+            HttpResponse::InternalServerError().json(ApiResponse {
                 success: false,
                 message: "Windows-only code path".to_string(),
-            });
+            })
         }
     } else {
-        return HttpResponse::InternalServerError().json(ApiResponse {
+        HttpResponse::InternalServerError().json(ApiResponse {
             success: false,
             message: "Unsupported operating system for volume detection".to_string(),
-        });
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct SetVolumeRequest {
+    volume: i32,
+}
+
+#[post("/api/volume/set")]
+async fn set_volume(req: actix_web::web::Json<SetVolumeRequest>) -> impl Responder {
+    println!("Set volume request received via web API: {}%", req.volume);
+
+    let volume_level = req.volume.clamp(0, 100);
+
+    if cfg!(target_os = "windows") {
+        #[cfg(target_os = "windows")]
+        {
+            match volume_control::VolumeControl::set_volume(volume_level) {
+                Ok(_) => {
+                    println!("Successfully set volume to {}%", volume_level);
+                    HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        message: format!("Volume set to {}%", volume_level),
+                    })
+                },
+                Err(e) => {
+                    HttpResponse::InternalServerError().json(ApiResponse {
+                        success: false,
+                        message: format!("Failed to set volume: {}", e),
+                    })
+                }
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: "Windows-only code path".to_string(),
+            })
+        }
+    } else if cfg!(target_os = "linux") {
+        // Try pactl (PulseAudio) first, fallback to amixer (ALSA)
+        let pactl_result = Command::new("pactl")
+            .args(["set-sink-volume", "@DEFAULT_SINK@", &format!("{}%", volume_level)])
+            .spawn();
+
+        let result = if pactl_result.is_ok() {
+            pactl_result
+        } else {
+            Command::new("amixer")
+                .args(["set", "Master", &format!("{}%", volume_level)])
+                .spawn()
+        };
+
+        match result {
+            Ok(_) => HttpResponse::Ok().json(ApiResponse {
+                success: true,
+                message: format!("Volume set to {}%", volume_level),
+            }),
+            Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: format!("Failed to set volume: {}", e),
+            }),
+        }
+    } else if cfg!(target_os = "macos") {
+        let result = Command::new("osascript")
+            .args([
+                "-e",
+                &format!("set volume output volume {}", volume_level)
+            ])
+            .spawn();
+
+        match result {
+            Ok(_) => HttpResponse::Ok().json(ApiResponse {
+                success: true,
+                message: format!("Volume set to {}%", volume_level),
+            }),
+            Err(e) => HttpResponse::InternalServerError().json(ApiResponse {
+                success: false,
+                message: format!("Failed to set volume: {}", e),
+            }),
+        }
+    } else {
+        HttpResponse::InternalServerError().json(ApiResponse {
+            success: false,
+            message: "Unsupported operating system".to_string(),
+        })
     }
 }
 
@@ -966,6 +1141,7 @@ async fn start_web_server() -> std::io::Result<()> {
             .service(increase_volume)
             .service(decrease_volume)
             .service(get_volume)
+            .service(set_volume)
     })
     .bind((host, port))?
     .run()
