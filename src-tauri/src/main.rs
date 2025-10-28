@@ -725,7 +725,9 @@ async fn shutdown() -> impl Responder {
     } else if cfg!(target_os = "linux") {
         Command::new("shutdown").args(["-h", "+1"]).spawn()
     } else if cfg!(target_os = "macos") {
-        Command::new("shutdown").args(["-h", "+1"]).spawn()
+        Command::new("sh")
+            .args(["-c", "sleep 60 && osascript -e 'tell app \"System Events\" to shut down' &"])
+            .spawn()
     } else {
         return HttpResponse::InternalServerError().json(ApiResponse {
             success: false,
@@ -783,7 +785,9 @@ async fn cancel_shutdown() -> impl Responder {
     } else if cfg!(target_os = "linux") {
         Command::new("shutdown").args(["-c"]).spawn()
     } else if cfg!(target_os = "macos") {
-        Command::new("killall").args(["shutdown"]).spawn()
+        Command::new("pkill")
+            .args(["-f", "sleep 60 && osascript"])
+            .spawn()
     } else {
         return HttpResponse::InternalServerError().json(ApiResponse {
             success: false,
@@ -1025,6 +1029,38 @@ async fn get_volume() -> impl Responder {
                 success: false,
                 message: "Windows-only code path".to_string(),
             })
+        }
+    } else if cfg!(target_os = "macos") {
+        let output = std::process::Command::new("osascript")
+            .args(["-e", "output volume of (get volume settings)"])
+            .output();
+
+        match output {
+            Ok(result) => {
+                let stdout = String::from_utf8_lossy(&result.stdout);
+                let volume_str = stdout.trim();
+                match volume_str.parse::<i32>() {
+                    Ok(vol) => {
+                        let volume = vol.min(100).max(0);
+                        println!("Successfully retrieved volume: {}%", volume);
+                        HttpResponse::Ok().json(VolumeResponse {
+                            volume,
+                        })
+                    },
+                    Err(_) => {
+                        HttpResponse::InternalServerError().json(ApiResponse {
+                            success: false,
+                            message: "Failed to parse volume".to_string(),
+                        })
+                    }
+                }
+            }
+            Err(e) => {
+                HttpResponse::InternalServerError().json(ApiResponse {
+                    success: false,
+                    message: format!("Failed to get volume: {}", e),
+                })
+            }
         }
     } else {
         HttpResponse::InternalServerError().json(ApiResponse {

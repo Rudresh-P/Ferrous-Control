@@ -20,7 +20,9 @@ fn shutdown() -> CommandResponse {
     } else if cfg!(target_os = "linux") {
         Command::new("shutdown").args(["-h", "+1"]).spawn()
     } else if cfg!(target_os = "macos") {
-        Command::new("shutdown").args(["-h", "+1"]).spawn()
+        Command::new("sh")
+            .args(["-c", "sleep 60 && osascript -e 'tell app \"System Events\" to shut down' &"])
+            .spawn()
     } else {
         return CommandResponse {
             success: false,
@@ -78,7 +80,9 @@ fn cancel_shutdown() -> CommandResponse {
     } else if cfg!(target_os = "linux") {
         Command::new("shutdown").args(["-c"]).spawn()
     } else if cfg!(target_os = "macos") {
-        Command::new("killall").args(["shutdown"]).spawn()
+        Command::new("pkill")
+            .args(["-f", "sleep 60 && osascript"])
+            .spawn()
     } else {
         return CommandResponse {
             success: false,
