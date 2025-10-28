@@ -9,6 +9,7 @@ function App() {
   const [buttonsDisabled, setButtonsDisabled] = useState(false);
   const [modal, setModal] = useState({ show: false, title: "", message: "", onConfirm: null });
   const [localIp, setLocalIp] = useState("");
+  const [volume, setVolume] = useState(null);
 
   useEffect(() => {
     async function fetchLocalIp() {
@@ -21,7 +22,20 @@ function App() {
       }
     }
     fetchLocalIp();
+    fetchVolume();
   }, []);
+
+  async function fetchVolume() {
+    console.log("Fetching volume...");
+    try {
+      const vol = await invoke("get_volume");
+      console.log("Volume received from backend:", vol);
+      setVolume(vol);
+      console.log("Volume state updated to:", vol);
+    } catch (error) {
+      console.error("Failed to get volume:", error);
+    }
+  }
 
   function showModal(title, message) {
     return new Promise((resolve) => {
@@ -105,6 +119,30 @@ function App() {
     setTimeout(() => setStatus({ message: "", type: "" }), 5000);
   }
 
+  async function handleVolumeIncrease() {
+    console.log("Volume increase button clicked");
+    try {
+      await invoke("increase_volume", { amount: 2 });
+      console.log("Volume increased, fetching new volume...");
+      // Wait a bit for the volume change to take effect
+      setTimeout(fetchVolume, 200);
+    } catch (error) {
+      console.error("Failed to increase volume:", error);
+    }
+  }
+
+  async function handleVolumeDecrease() {
+    console.log("Volume decrease button clicked");
+    try {
+      await invoke("decrease_volume", { amount: 2 });
+      console.log("Volume decreased, fetching new volume...");
+      // Wait a bit for the volume change to take effect
+      setTimeout(fetchVolume, 200);
+    } catch (error) {
+      console.error("Failed to decrease volume:", error);
+    }
+  }
+
   return (
     <main className="container">
       <AutoStartToggle />
@@ -151,6 +189,36 @@ function App() {
           <span>Cancel</span>
         </button>
       </div>
+
+      <div className="button-container volume-controls">
+        <button
+          className="control-btn volume-up-btn"
+          onClick={handleVolumeIncrease}
+        >
+          <span className="icon">🔊</span>
+          <span>Volume Up</span>
+        </button>
+
+        <button
+          className="control-btn volume-down-btn"
+          onClick={handleVolumeDecrease}
+        >
+          <span className="icon">🔉</span>
+          <span>Volume Down</span>
+        </button>
+      </div>
+
+      {volume !== null && (
+        <div className="volume-display">
+          <div className="volume-level">
+            <span className="volume-icon">🔊</span>
+            <span className="volume-percentage">{volume}%</span>
+          </div>
+          <div className="volume-bar">
+            <div className="volume-bar-fill" style={{ width: `${volume}%` }}></div>
+          </div>
+        </div>
+      )}
 
       {status.message && (
         <div className={`status ${status.type}`}>
