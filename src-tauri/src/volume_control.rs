@@ -3,12 +3,9 @@ pub mod windows {
     use windows::{
         core::*,
         Win32::Media::Audio::Endpoints::IAudioEndpointVolume,
-        Win32::Media::Audio::{
-            eRender, eConsole, IMMDeviceEnumerator, MMDeviceEnumerator,
-        },
+        Win32::Media::Audio::{eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator},
         Win32::System::Com::{
-            CoCreateInstance, CoInitializeEx, CoUninitialize,
-            CLSCTX_ALL, COINIT_MULTITHREADED,
+            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
         },
     };
 
@@ -81,32 +78,6 @@ pub mod windows {
             let new_volume = (current - amount).max(0);
             Self::set_volume(new_volume)?;
             Ok(new_volume)
-        }
-
-        /// Mute or unmute the audio
-        pub fn set_mute(mute: bool) -> Result<()> {
-            unsafe {
-                let endpoint_volume = Self::get_endpoint_volume()?;
-                endpoint_volume.SetMute(mute, std::ptr::null())?;
-
-                // Clean up COM
-                CoUninitialize();
-
-                Ok(())
-            }
-        }
-
-        /// Get the current mute state
-        pub fn get_mute() -> Result<bool> {
-            unsafe {
-                let endpoint_volume = Self::get_endpoint_volume()?;
-                let is_muted = endpoint_volume.GetMute()?;
-
-                // Clean up COM
-                CoUninitialize();
-
-                Ok(is_muted.as_bool())
-            }
         }
     }
 }
